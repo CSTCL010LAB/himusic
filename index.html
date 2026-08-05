@@ -51,19 +51,13 @@
         justify-content: space-between;
         user-select: text;
     }
-    .track-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
     #track-info {
         color: #ffffff;
         text-shadow: 0 0 3px rgba(255, 255, 255, 0.6);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-    }
-    #play-state {
-        color: #ffffff;
-        text-shadow: 0 0 2px rgba(255, 255, 255, 0.5);
-        font-size: 12px;
-        flex-shrink: 0;
+        margin-bottom: 8px;
     }
     .time-row { display: flex; justify-content: space-between; align-items: center; }
     #time-info, #system-time {
@@ -176,10 +170,7 @@
     <div class="title-bar"><span>HiMusic</span></div>
     <div class="content">
         <div class="screen">
-            <div class="track-row">
-                <div id="track-info">未加载曲目...</div>
-                <div id="play-state">[] STOP</div>
-            </div>
+            <div id="track-info">未加载曲目...</div>
             <div class="time-row">
                 <div id="time-info">00:00 / 00:00</div>
                 <div id="system-time">YYYY-MM-DD HH:MM:SS</div>
@@ -207,6 +198,14 @@
 
 <script>
 const songs = [
+  // --- 最新添加 ---
+  {"name": "桃花诺", "file": "桃花诺.mp3"},
+  {"name": "原点", "file": "原点.mp3"},
+  {"name": "日月长明", "file": "日月长明.mp3"},
+  {"name": "闹海", "file": "闹海.mp3"},
+  {"name": "孤岛", "file": "孤岛.mp3"},
+
+  // --- 原有歌曲 ---
   {"name": "入海", "file": "入海.mp3"},
   {"name": "郑少秋, 珍珍, 佩佩 - 天涯孤客", "file": "郑少秋,珍珍,佩佩+-+天涯孤客.mp3"},
   {"name": "你看你看月亮的脸 - 大头针", "file": "你看你看月亮的脸 - 大头针.mp3"},
@@ -342,7 +341,6 @@ const songs = [
 const audio = document.getElementById('audio');
 const playlistEl = document.getElementById('playlist');
 const trackInfo = document.getElementById('track-info');
-const playState = document.getElementById('play-state');
 const timeInfo = document.getElementById('time-info');
 const systemTime = document.getElementById('system-time');
 const progressBar = document.getElementById('progress');
@@ -372,14 +370,10 @@ function updateSystemTime() {
 setInterval(updateSystemTime, 1000);
 updateSystemTime();
 
-/* 统一同步按钮凹陷状态 + LCD 状态灯 */
-function setUI(state) {
+/* 只同步按钮凹陷状态 */
+function syncButtons(state) {
     playBtn.classList.toggle('pressed', state === 'play');
     pauseBtn.classList.toggle('pressed', state === 'pause');
-    if (state === 'play') playState.textContent = ">> PLAY";
-    else if (state === 'pause') playState.textContent = "|| PAUSE";
-    else if (state === 'stop') playState.textContent = "[] STOP";
-    else playState.textContent = "!! ERROR";
 }
 
 function loadSong(index) {
@@ -402,30 +396,33 @@ function loadSong(index) {
 
 function playSong() {
     if (currentIndex === -1) loadSong(0);
-    if (isPlaying && !audio.ended) return;   // 正在播放时不重复触发
-    if (audio.ended) audio.currentTime = 0;  // 播完后按播放自动重头开始
+    if (audio.ended) audio.currentTime = 0;
     audio.play().catch(e => {});
     isPlaying = true;
-    setUI('play');
+    syncButtons('play');
 }
 
+/* Pause = 暂停/继续 切换键 */
 function pauseSong() {
-    if (!isPlaying) return;
-    audio.pause();
-    isPlaying = false;
-    setUI('pause');
+    if (currentIndex === -1) return;
+    if (isPlaying) {
+        audio.pause();
+        isPlaying = false;
+        syncButtons('pause');
+    } else {
+        playSong();
+    }
 }
 
+/* Stop = 停止并归零，但保留曲目显示 */
 function stopSong() {
+    if (currentIndex === -1) return;
     audio.pause();
     audio.currentTime = 0;
-    audio.src = "";
-    trackInfo.textContent = "未加载曲目...";
-    timeInfo.textContent = "00:00 / 00:00";
+    progressBar.value = 0;
+    timeInfo.textContent = `00:00 / ${formatTime(audio.duration)}`;
     isPlaying = false;
-    currentIndex = -1;
-    setUI('stop');
-    document.querySelectorAll('.playlist-item').forEach(el => el.classList.remove('active'));
+    syncButtons('stop');
 }
 
 function togglePlay() {
@@ -467,7 +464,7 @@ audio.addEventListener('error', () => {
     if (currentIndex !== -1) {
         trackInfo.textContent = "无法播放: " + songs[currentIndex].name;
         isPlaying = false;
-        setUI('error');
+        syncButtons('stop');
     }
 });
 
